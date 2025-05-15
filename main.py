@@ -8,7 +8,6 @@ import uvicorn
 import openai
 from collections import defaultdict
 
-# ENV laden
 load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -20,7 +19,6 @@ openai.api_key = OPENAI_API_KEY
 
 app = FastAPI()
 telegram_app = Application.builder().token(BOT_TOKEN).build()
-
 user_contexts = defaultdict(list)
 
 async def show_menu(update: Update, context):
@@ -94,14 +92,15 @@ async def voice_handler(update: Update, context):
         return
 
     try:
-        print("📡 Führe Whisper-Transkription aus...")
+        print("📡 Sende an Whisper...")
         with open(output_path, "rb") as audio_file:
             transcript = openai.Audio.transcribe("whisper-1", audio_file, language=WHISPER_LANGUAGE)
-        print("📝 Transkript:", transcript["text"])
+        print("📝 Transkript erhalten:", transcript["text"])
         update.message.text = transcript["text"]
+        print("➡️ Übergabe an GPT...")
         await gpt_reply(update, context)
     except Exception as e:
-        print("❌ Fehler bei Whisper:", e)
+        print("❌ Whisper-Fehler:", e)
         await update.message.reply_text("Fehler bei Spracherkennung.")
 
 @app.post(WEBHOOK_PATH)
