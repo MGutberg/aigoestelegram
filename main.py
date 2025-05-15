@@ -7,6 +7,8 @@ from dotenv import load_dotenv
 import uvicorn
 import openai
 from collections import defaultdict
+import re
+from gtts import gTTS
 
 load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -63,9 +65,7 @@ async def gpt_reply(update: Update, context):
         )
         reply = response.choices[0].message.content.strip()
         user_contexts[user_id].append({"role": "assistant", "content": reply})
-        import re
-    from gtts import gTTS
-
+        
     # Stadt erkennen (einfacher Ortsname-Suchbegriff)
     ort_match = re.search(r'in\s+([A-ZÄÖÜa-zäöüß\-\s]+)', message)
     if ort_match:
