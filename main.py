@@ -96,9 +96,16 @@ async def voice_handler(update: Update, context):
         with open(output_path, "rb") as audio_file:
             transcript = openai.Audio.transcribe("whisper-1", audio_file, language=WHISPER_LANGUAGE)
         print("📝 Transkript erhalten:", transcript["text"])
-        update.message.text = transcript["text"]
         print("➡️ Übergabe an GPT...")
-        await gpt_reply(update, context)
+        await gpt_reply(
+            type("FakeUpdate", (), {
+                "effective_user": update.effective_user,
+                "message": type("FakeMessage", (), {
+                    "text": transcript["text"],
+                    "reply_text": update.message.reply_text
+                })()
+            })(), context
+        )
     except Exception as e:
         print("❌ Whisper-Fehler:", e)
         import traceback
