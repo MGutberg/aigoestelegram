@@ -202,3 +202,56 @@ telegram_app.add_handler(CommandHandler("menu", show_menu))
 telegram_app.add_handler(CallbackQueryHandler(button_handler))
 telegram_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, gpt_reply))
 telegram_app.add_handler(MessageHandler(filters.VOICE | filters.AUDIO, voice_handler))
+
+
+
+async def gpt_reply_voice_only(message, update, context):
+    import re
+    from gtts import gTTS
+
+    try:
+        user_id = update.effective_user.id
+        context.user_data.setdefault("mode", "gpt_general")
+        print(f"🎤 GPT-Sprachmodus für {user_id}: {message}")
+
+        user_contexts[user_id].append({"role": "user", "content": message})
+
+        messages = [
+            {"role": "system", "content": "Auch wenn du keinen Zugriff auf aktuelle Daten hast, gib bitte eine sinnvolle, freundliche und plausible Antwort. Wenn nach dem Wetter gefragt wird, liefere eine hypothetische Beschreibung auf Basis typischer Bedingungen für Ort und Jahreszeit."}
+        ] + user_contexts[user_id][-10:]
+
+        retry_attempts = 3
+        for attempt in range(retry_attempts):
+            try:
+                response = openai.ChatCompletion.create(
+                    model="gpt-3.5-turbo",
+                    messages=messages,
+                    temperature=0.7
+                )
+                break
+            except openai.error.OpenAIError as e:
+                print(f"⚠️ GPT-Fehler bei Versuch {attempt + 1}: {e}")
+                if attempt < retry_attempts - 1:
+                    time.sleep(3)
+                else:
+                    raise
+
+        reply = response.choices[0].message.content.strip()
+        user_contexts[user_id].append({"role": "assistant", "content": reply})
+
+        ort_match = re.search(r'in\s+([A-ZÄÖÜa-zäöüß\-\s]+)', message)
+        if ort_match:
+            ort = ort_match.group(1).strip().rstrip("?.,!")
+            print(f"📍 Stadt erkannt: {ort}")
+            reply = f"In {ort} ist es typischerweise so: {reply}"
+
+        tts = gTTS(reply, lang='de')
+        tts_path = f"/tmp/{user_id}_reply.mp3"
+        tts.save(tts_path)
+        await context.bot.send_voice(chat_id=update.effective_user.id, voice=open(tts_path, "rb"))
+
+    except Exception as e:
+        print("❌ Fehler bei GPT/TTS-Sprachantwort:", e)
+        import traceback
+        traceback.print_exc()
+        await update.message.reply_text("Fehler bei Sprachantwort.")
