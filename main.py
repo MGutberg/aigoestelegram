@@ -53,14 +53,36 @@ async def gpt_reply(update: Update, context):
     user_contexts[user_id].append({"role": "user", "content": message})
 
     try:
+        messages = [
+            {"role": "system", "content": "Auch wenn du keinen Zugriff auf aktuelle Daten hast, gib bitte eine sinnvolle, freundliche und plausible Antwort. Wenn nach dem Wetter gefragt wird, liefere eine hypothetische Beschreibung auf Basis typischer Bedingungen für Ort und Jahreszeit."}
+        ] + user_contexts[user_id][-10:]
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
-            messages=user_contexts[user_id][-10:],
+            messages=messages,
             temperature=0.7
         )
         reply = response.choices[0].message.content.strip()
         user_contexts[user_id].append({"role": "assistant", "content": reply})
-        await update.message.reply_text(reply)
+        import re
+    from gtts import gTTS
+
+    # Stadt erkennen (einfacher Ortsname-Suchbegriff)
+    ort_match = re.search(r'in\s+([A-ZÄÖÜa-zäöüß\-\s]+)', message)
+    if ort_match:
+        ort = ort_match.group(1).strip().rstrip("?.,!")
+        print(f"📍 Stadt erkannt: {ort}")
+        reply = f"In {ort} ist es typischerweise so: {reply}"
+
+    await update.message.reply_text(reply)
+
+    # Text-to-Speech erzeugen (gTTS → MP3)
+    tts = gTTS(reply, lang='de')
+    tts_path = f"/tmp/{user_id}_reply.mp3"
+    tts.save(tts_path)
+
+    # MP3 senden
+    await context.bot.send_voice(chat_id=update.effective_user.id, voice=open(tts_path, "rb"))
+
     except Exception as e:
         print("❌ Fehler bei GPT:", e)
         await update.message.reply_text("GPT ist nicht erreichbar.")
