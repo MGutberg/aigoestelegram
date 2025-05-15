@@ -59,11 +59,21 @@ async def gpt_reply(update: Update, context):
             {"role": "system", "content": "Auch wenn du keinen Zugriff auf aktuelle Daten hast, gib bitte eine sinnvolle, freundliche und plausible Antwort. Wenn nach dem Wetter gefragt wird, liefere eine hypothetische Beschreibung auf Basis typischer Bedingungen für Ort und Jahreszeit."}
         ] + user_contexts[user_id][-10:]
 
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=messages,
-            temperature=0.7
-        )
+        retry_attempts = 3
+        for attempt in range(retry_attempts):
+            try:
+                response = openai.ChatCompletion.create(
+                    model="gpt-3.5-turbo",
+                    messages=messages,
+                    temperature=0.7
+                )
+                break  # bei Erfolg abbrechen
+            except openai.error.OpenAIError as e:
+                print(f"⚠️ GPT-Fehler bei Versuch {attempt + 1}: {e}")
+                if attempt < retry_attempts - 1:
+                    time.sleep(3)
+                else:
+                    raise
         reply = response.choices[0].message.content.strip()
         user_contexts[user_id].append({"role": "assistant", "content": reply})
 
@@ -98,11 +108,21 @@ async def gpt_reply(update: Update, context):
         messages = [
             {"role": "system", "content": "Auch wenn du keinen Zugriff auf aktuelle Daten hast, gib bitte eine sinnvolle, freundliche und plausible Antwort. Wenn nach dem Wetter gefragt wird, liefere eine hypothetische Beschreibung auf Basis typischer Bedingungen für Ort und Jahreszeit."}
         ] + user_contexts[user_id][-10:]
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=messages,
-            temperature=0.7
-        )
+        retry_attempts = 3
+        for attempt in range(retry_attempts):
+            try:
+                response = openai.ChatCompletion.create(
+                    model="gpt-3.5-turbo",
+                    messages=messages,
+                    temperature=0.7
+                )
+                break  # bei Erfolg abbrechen
+            except openai.error.OpenAIError as e:
+                print(f"⚠️ GPT-Fehler bei Versuch {attempt + 1}: {e}")
+                if attempt < retry_attempts - 1:
+                    time.sleep(3)
+                else:
+                    raise
         reply = response.choices[0].message.content.strip()
         user_contexts[user_id].append({"role": "assistant", "content": reply})
         await update.message.reply_text(reply)
