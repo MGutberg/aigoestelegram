@@ -14,23 +14,30 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 WEBHOOK_PATH = "/webhook"
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 
+# OpenAI-Key setzen
 openai.api_key = OPENAI_API_KEY
 
 app = FastAPI()
 telegram_app = Application.builder().token(BOT_TOKEN).build()
 
-# /start-Befehl
+# /start
 async def start(update: Update, context):
     print("✅ /start empfangen von:", update.effective_user.username)
     await update.message.reply_text("Hallo! Ich bin dein GPT-gestützter Telegram-Bot 🤖")
 
 telegram_app.add_handler(CommandHandler("start", start))
 
-# GPT-Handler für freie Texteingabe
+# GPT-Antwort
 async def gpt_reply(update: Update, context):
     user_input = update.message.text
-    print(f"🤖 GPT-Anfrage von {update.effective_user.username}: {user_input}")
-    
+    user_name = update.effective_user.username or "unbekannt"
+    print(f"🤖 GPT-Anfrage von {user_name}: {user_input}")
+    print(f"🔐 OpenAI-Key erkannt: {'JA' if OPENAI_API_KEY else 'NEIN'}")
+
+    if not OPENAI_API_KEY:
+        await update.message.reply_text("Fehler: OpenAI-API-Key fehlt.")
+        return
+
     try:
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
@@ -41,11 +48,11 @@ async def gpt_reply(update: Update, context):
         await update.message.reply_text(answer)
     except Exception as e:
         print(f"❌ Fehler bei OpenAI: {e}")
-        await update.message.reply_text("Ups! GPT ist gerade nicht erreichbar.")
+        await update.message.reply_text("❌ GPT ist gerade nicht erreichbar.\n" + str(e))
 
 telegram_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, gpt_reply))
 
-# Webhook-Endpoint
+# Webhook-Route
 @app.post(WEBHOOK_PATH)
 async def process_update(request: Request):
     json_data = await request.json()
@@ -54,7 +61,6 @@ async def process_update(request: Request):
     asyncio.create_task(telegram_app.process_update(update))
     return {"status": "ok"}
 
-# Startup → Telegram-App initialisieren + Webhook setzen
 @app.on_event("startup")
 async def on_startup():
     print("🚀 Initialisiere Telegram-Bot...")
