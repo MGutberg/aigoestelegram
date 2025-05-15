@@ -85,7 +85,7 @@ async def voice_handler(update: Update, context):
     import subprocess
     try:
         print("🔁 Konvertiere mit ffmpeg...")
-        subprocess.run(["ffmpeg", "-i", input_path, output_path], check=True)
+        subprocess.run(["ffmpeg", "-y", "-i", input_path, output_path], check=True)
     except Exception as ffmpeg_err:
         print("❌ Fehler bei ffmpeg:", ffmpeg_err)
         await update.message.reply_text("Fehler beim Umwandeln der Sprachnachricht.")
