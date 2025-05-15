@@ -101,6 +101,8 @@ async def voice_handler(update: Update, context):
         await gpt_reply(update, context)
     except Exception as e:
         print("❌ Whisper-Fehler:", e)
+        import traceback
+        traceback.print_exc()
         await update.message.reply_text("Fehler bei Spracherkennung.")
 
 @app.post(WEBHOOK_PATH)
