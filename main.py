@@ -21,10 +21,8 @@ openai.api_key = OPENAI_API_KEY
 app = FastAPI()
 telegram_app = Application.builder().token(BOT_TOKEN).build()
 
-# Per-User-Kontextspeicher
 user_contexts = defaultdict(list)
 
-# Menü anzeigen
 async def show_menu(update: Update, context):
     keyboard = [
         [InlineKeyboardButton("🤖 GPT-Modus", callback_data="gpt_general")],
@@ -34,7 +32,6 @@ async def show_menu(update: Update, context):
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text("Willkommen! Wähle eine Aktion:", reply_markup=reply_markup)
 
-# Button-Handler
 async def button_handler(update: Update, context):
     query = update.callback_query
     await query.answer()
@@ -49,19 +46,18 @@ async def button_handler(update: Update, context):
         user_contexts[user_id].clear()
         await query.edit_message_text("🧠 Dein Gesprächsverlauf wurde gelöscht.", reply_markup=query.message.reply_markup)
 
-# Textnachricht → GPT mit Memory
 async def gpt_reply(update: Update, context):
     user_id = update.effective_user.id
     message = update.message.text
     context.user_data.setdefault("mode", "gpt_general")
+    print(f"📥 GPT-Text von {user_id}: {message}")
 
-    # Konversation speichern
     user_contexts[user_id].append({"role": "user", "content": message})
 
     try:
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
-            messages=user_contexts[user_id][-10:],  # letzte 10 Nachrichten
+            messages=user_contexts[user_id][-10:],
             temperature=0.7
         )
         reply = response.choices[0].message.content.strip()
@@ -71,12 +67,13 @@ async def gpt_reply(update: Update, context):
         print("❌ Fehler bei GPT:", e)
         await update.message.reply_text("GPT ist nicht erreichbar.")
 
-# Sprachnachrichten verarbeiten (nur OGG/Voice)
 async def voice_handler(update: Update, context):
+    print("🎧 Sprachnachricht empfangen")
     user_id = update.effective_user.id
     voice = update.message.voice or update.message.audio
 
     if not voice:
+        print("⚠️ Kein Voice-Objekt erkannt.")
         await update.message.reply_text("Bitte sende mir eine Sprachnachricht im OGG-Format.")
         return
 
@@ -84,18 +81,29 @@ async def voice_handler(update: Update, context):
     input_path = f"/tmp/{user_id}_voice.ogg"
     output_path = f"/tmp/{user_id}_voice.wav"
 
+    print("⬇️ Lade Datei herunter...")
     await file.download_to_drive(input_path)
 
     import subprocess
-    subprocess.run(["ffmpeg", "-i", input_path, output_path], check=True)
+    try:
+        print("🔁 Konvertiere mit ffmpeg...")
+        subprocess.run(["ffmpeg", "-i", input_path, output_path], check=True)
+    except Exception as ffmpeg_err:
+        print("❌ Fehler bei ffmpeg:", ffmpeg_err)
+        await update.message.reply_text("Fehler beim Umwandeln der Sprachnachricht.")
+        return
 
-    with open(output_path, "rb") as audio_file:
-        transcript = openai.Audio.transcribe("whisper-1", audio_file, language=WHISPER_LANGUAGE)
+    try:
+        print("📡 Führe Whisper-Transkription aus...")
+        with open(output_path, "rb") as audio_file:
+            transcript = openai.Audio.transcribe("whisper-1", audio_file, language=WHISPER_LANGUAGE)
+        print("📝 Transkript:", transcript["text"])
+        update.message.text = transcript["text"]
+        await gpt_reply(update, context)
+    except Exception as e:
+        print("❌ Fehler bei Whisper:", e)
+        await update.message.reply_text("Fehler bei Spracherkennung.")
 
-    update.message.text = transcript["text"]
-    await gpt_reply(update, context)
-
-# Webhook Endpoint
 @app.post(WEBHOOK_PATH)
 async def process_update(request: Request):
     json_data = await request.json()
