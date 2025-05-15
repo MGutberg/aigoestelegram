@@ -47,26 +47,23 @@ async def button_handler(update: Update, context):
 async def gpt_reply(update: Update, context):
     import re
     from gtts import gTTS
-    user_id = update.effective_user.id
-    message = update.message.text
-    context.user_data.setdefault("mode", "gpt_general")
-    print(f"📥 GPT-Text von {user_id}: {message}")
-
-    user_contexts[user_id].append({"role": "user", "content": message})
-
     try:
-            try:
+        user_id = update.effective_user.id
+        message = update.message.text
+        context.user_data.setdefault("mode", "gpt_general")
+        print(f"📥 GPT-Text von {user_id}: {message}")
+
+        user_contexts[user_id].append({"role": "user", "content": message})
+
         messages = [
             {"role": "system", "content": "Auch wenn du keinen Zugriff auf aktuelle Daten hast, gib bitte eine sinnvolle, freundliche und plausible Antwort. Wenn nach dem Wetter gefragt wird, liefere eine hypothetische Beschreibung auf Basis typischer Bedingungen für Ort und Jahreszeit."}
         ] + user_contexts[user_id][-10:]
-        try:
+
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=messages,
             temperature=0.7
         )
-        reply = response.choices[0].message.content.strip()
-        user_contexts[user_id].append({"role": "assistant", "content": reply})
         reply = response.choices[0].message.content.strip()
         user_contexts[user_id].append({"role": "assistant", "content": reply})
 
@@ -90,12 +87,25 @@ async def gpt_reply(update: Update, context):
         import traceback
         traceback.print_exc()
         await update.message.reply_text("Es ist ein Fehler aufgetreten.")
+    user_id = update.effective_user.id
+    message = update.message.text
+    context.user_data.setdefault("mode", "gpt_general")
+    print(f"📥 GPT-Text von {user_id}: {message}")
 
-    except Exception as e:
-        print("❌ Fehler bei GPT/TTS:", e)
-        import traceback
-        traceback.print_exc()
-        await update.message.reply_text("Es ist ein Fehler aufgetreten.")
+    user_contexts[user_id].append({"role": "user", "content": message})
+
+    try:
+        messages = [
+            {"role": "system", "content": "Auch wenn du keinen Zugriff auf aktuelle Daten hast, gib bitte eine sinnvolle, freundliche und plausible Antwort. Wenn nach dem Wetter gefragt wird, liefere eine hypothetische Beschreibung auf Basis typischer Bedingungen für Ort und Jahreszeit."}
+        ] + user_contexts[user_id][-10:]
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=messages,
+            temperature=0.7
+        )
+        reply = response.choices[0].message.content.strip()
+        user_contexts[user_id].append({"role": "assistant", "content": reply})
+        await update.message.reply_text(reply)
     except Exception as e:
         print("❌ Fehler bei GPT:", e)
         await update.message.reply_text("GPT ist nicht erreichbar.")
