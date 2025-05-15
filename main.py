@@ -7,8 +7,6 @@ from dotenv import load_dotenv
 import uvicorn
 import openai
 from collections import defaultdict
-import re
-from gtts import gTTS
 
 load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -47,6 +45,8 @@ async def button_handler(update: Update, context):
         await query.edit_message_text("🧠 Dein Gesprächsverlauf wurde gelöscht.", reply_markup=query.message.reply_markup)
 
 async def gpt_reply(update: Update, context):
+    import re
+    from gtts import gTTS
     user_id = update.effective_user.id
     message = update.message.text
     context.user_data.setdefault("mode", "gpt_general")
@@ -55,9 +55,11 @@ async def gpt_reply(update: Update, context):
     user_contexts[user_id].append({"role": "user", "content": message})
 
     try:
+            try:
         messages = [
             {"role": "system", "content": "Auch wenn du keinen Zugriff auf aktuelle Daten hast, gib bitte eine sinnvolle, freundliche und plausible Antwort. Wenn nach dem Wetter gefragt wird, liefere eine hypothetische Beschreibung auf Basis typischer Bedingungen für Ort und Jahreszeit."}
         ] + user_contexts[user_id][-10:]
+        try:
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=messages,
@@ -65,24 +67,35 @@ async def gpt_reply(update: Update, context):
         )
         reply = response.choices[0].message.content.strip()
         user_contexts[user_id].append({"role": "assistant", "content": reply})
-        
-    # Stadt erkennen (einfacher Ortsname-Suchbegriff)
-    ort_match = re.search(r'in\s+([A-ZÄÖÜa-zäöüß\-\s]+)', message)
-    if ort_match:
-        ort = ort_match.group(1).strip().rstrip("?.,!")
-        print(f"📍 Stadt erkannt: {ort}")
-        reply = f"In {ort} ist es typischerweise so: {reply}"
+        reply = response.choices[0].message.content.strip()
+        user_contexts[user_id].append({"role": "assistant", "content": reply})
 
-    await update.message.reply_text(reply)
+        # Stadt erkennen
+        ort_match = re.search(r'in\s+([A-ZÄÖÜa-zäöüß\-\s]+)', message)
+        if ort_match:
+            ort = ort_match.group(1).strip().rstrip("?.,!")
+            print(f"📍 Stadt erkannt: {ort}")
+            reply = f"In {ort} ist es typischerweise so: {reply}"
 
-    # Text-to-Speech erzeugen (gTTS → MP3)
-    tts = gTTS(reply, lang='de')
-    tts_path = f"/tmp/{user_id}_reply.mp3"
-    tts.save(tts_path)
+        await update.message.reply_text(reply)
 
-    # MP3 senden
-    await context.bot.send_voice(chat_id=update.effective_user.id, voice=open(tts_path, "rb"))
+        # Text-to-Speech erzeugen
+        tts = gTTS(reply, lang='de')
+        tts_path = f"/tmp/{user_id}_reply.mp3"
+        tts.save(tts_path)
+        await context.bot.send_voice(chat_id=update.effective_user.id, voice=open(tts_path, "rb"))
 
+    except Exception as e:
+        print("❌ Fehler bei GPT/TTS:", e)
+        import traceback
+        traceback.print_exc()
+        await update.message.reply_text("Es ist ein Fehler aufgetreten.")
+
+    except Exception as e:
+        print("❌ Fehler bei GPT/TTS:", e)
+        import traceback
+        traceback.print_exc()
+        await update.message.reply_text("Es ist ein Fehler aufgetreten.")
     except Exception as e:
         print("❌ Fehler bei GPT:", e)
         await update.message.reply_text("GPT ist nicht erreichbar.")
