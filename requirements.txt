@@ -3,3 +3,5 @@ uvicorn
 python-telegram-bot==20.7
 python-dotenv
 openai==0.28
+pydub
+ffmpeg-python
